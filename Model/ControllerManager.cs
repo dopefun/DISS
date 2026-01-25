@@ -187,13 +187,12 @@ public class ControllerManager : MonoBehaviour
         }
     }
 
-
     float controlThrottle()
     {
 
         float userInput = throttleAction.ReadValue<float>() * (invertAxisT ? -1 : 1);
         float throttle = heightSensitivity * userInput;
-        batteryManager.SetCurrentDraw(throttle);
+        //batteryManager.SetCurrentDraw(throttle);
         return throttle;
     }
 
@@ -352,9 +351,9 @@ public class ControllerManager : MonoBehaviour
         float rollCommand = tiltRateKp * (angularRatesRef.x + omega.z);
         float pitchCommand = tiltRateKp * (angularRatesRef.y + omega.x);
         float yawCommand = yawRateKp * (angularRatesRef.z - omega.y);
-        Debug.Log("AngularVel:" + Mathf.Round(angularRatesRef.x) + "  " + Mathf.Round(angularRatesRef.y) + "  " + Mathf.Round(angularRatesRef.z));
-        Debug.Log("OmegaVel:" + Mathf.Round(omega.z) + "  " + Mathf.Round(omega.x) + "  " + Mathf.Round(omega.y));
-        Debug.Log("Controller:" + Mathf.Round(rollCommand) + "  " + Mathf.Round(pitchCommand) + "  " + Mathf.Round(yawCommand));
+        //Debug.Log("AngularVel:" + Mathf.Round(angularRatesRef.x) + "  " + Mathf.Round(angularRatesRef.y) + "  " + Mathf.Round(angularRatesRef.z));
+        //Debug.Log("OmegaVel:" + Mathf.Round(omega.z) + "  " + Mathf.Round(omega.x) + "  " + Mathf.Round(omega.y));
+        //Debug.Log("Controller:" + Mathf.Round(rollCommand) + "  " + Mathf.Round(pitchCommand) + "  " + Mathf.Round(yawCommand));
         return new Vector3(rollCommand, pitchCommand, yawCommand);
     }
 
@@ -477,8 +476,8 @@ public class ControllerManager : MonoBehaviour
 
     private void OnThrottlePerformed(InputAction.CallbackContext context)
     {
-        float value = context.ReadValue<float>();
-        batteryManager.SetCurrentDraw(value);
+        // float value = context.ReadValue<float>();
+        // batteryManager.SetCurrentDraw(value);
         // Use the value to control the throttle
     }
 
