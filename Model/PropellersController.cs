@@ -11,8 +11,8 @@ public class PropellersController : MonoBehaviour
     [SerializeField] private float motor3RPM;
     [SerializeField] private float motor4RPM;
 
-    public float motorEfficiency = 0.8f; // Коэффициент эффективности моторов, можно подстроить под конкретные моторы
-    public float motorCurrentFactor = 0.02f; // Фактор для расчета тока на основе RPM, зависит от характеристик моторов
+    public float motorEfficiency = 0.75f; // Коэффициент эффективности моторов, можно подстроить под конкретные моторы
+    public float motorCurrentFactor = 0.00000024f; // Фактор для расчета тока на основе RPM, зависит от характеристик моторов
 
     private Vector3[] propellersPositions;
     private Vector4 propellersCW;
@@ -42,7 +42,6 @@ public class PropellersController : MonoBehaviour
     [SerializeField] float _W = 0.96f;
     [SerializeField] float _H = 0.9f;
     [SerializeField] float heightFeedforward = 8200f;
-
 
     float _m;
 
@@ -160,6 +159,12 @@ public class PropellersController : MonoBehaviour
             totalForce += propForce;
             totalTorque += propTorque;
         }
+        BatteryManager battery = GetComponent<BatteryManager>();
+        if (battery != null)
+        {
+            float motorCurrent = GetCurrentConsumption();
+            battery.SetCurrentFromMotors(motorCurrent);
+        }
     }
 
     public float getPower() 
@@ -177,41 +182,48 @@ public class PropellersController : MonoBehaviour
         return 4 * maxRPM * maxRPM;
     }
 
-    /*public float GetCurrentConsumption()
+    // Восстанавливаем метод (убираем Debug.Log для производительности)
+    public float GetCurrentConsumption()
     {
         float totalCurrent = 0;
         float[] RPM = { motor1RPM, motor2RPM, motor3RPM, motor4RPM };
         BatteryManager batteryManager = GetComponent<BatteryManager>();
         float currentVoltage = batteryManager.GetActualVoltage();
+    
+    // Защита от деления на ноль
+    if (currentVoltage < 1f) currentVoltage = 1f;
 
-        for (int i = 0; i < 4; i++) {
-            // Проверяем, было ли резкое увеличение RPM
-            if (RPM[i] > previousRPM[i]) {
-                accelerationTimer[i] = accelerationDuration; // Запускаем таймер
-            }
-            previousRPM[i] = RPM[i];
-
-            // Целевой ток для каждого двигателя
-            float target = (RPM[i] * RPM[i] * motorCurrentFactor) / (currentVoltage * motorEfficiency);
-
-            // Увеличиваем ток при ускорении
-            if (accelerationTimer[i] > 0) {
-                target *= accelerationFactor;
-                accelerationTimer[i] -= Time.deltaTime;
-            }
-
-            // Плавное изменение тока
-            currentMotorCurrent[i] = Mathf.Lerp(currentMotorCurrent[i], target, currentSmoothingFactor);
-
-            // Добавляем случайные колебания ±5%
-            float randomFactor = 1f + UnityEngine.Random.Range(-0.05f, 0.05f);
-            currentMotorCurrent[i] *= randomFactor;
-
-            totalCurrent += currentMotorCurrent[i];
-            Debug.Log(totalCurrent);
+    for (int i = 0; i < 4; i++) 
+    {
+        // Проверяем ускорение
+        if (RPM[i] > previousRPM[i]) 
+        {
+            accelerationTimer[i] = accelerationDuration;
         }
-        return totalCurrent;
-    }*/
+        previousRPM[i] = RPM[i];
+
+        // Целевой ток: I = k·RPM²/(U·η)
+        float target = (RPM[i] * RPM[i] * motorCurrentFactor) / (currentVoltage * motorEfficiency);
+
+        // Пик при ускорении
+        if (accelerationTimer[i] > 0) 
+        {
+            target *= accelerationFactor;
+            accelerationTimer[i] -= Time.deltaTime;
+        }
+
+        // Плавное изменение (симуляция инерции ESC)
+        currentMotorCurrent[i] = Mathf.Lerp(currentMotorCurrent[i], target, currentSmoothingFactor);
+
+        // Добавляем шум ±5% (реальные колебания)
+        float randomFactor = 1f + UnityEngine.Random.Range(-0.05f, 0.05f);
+        currentMotorCurrent[i] *= randomFactor;
+
+        totalCurrent += currentMotorCurrent[i];
+    }
+    
+    return totalCurrent;
+}
 
     public float getRPM(int i) 
     {
