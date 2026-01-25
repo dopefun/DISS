@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 public class ObjectInfo : MonoBehaviour
 {
@@ -90,5 +91,19 @@ public class ObjectInfo : MonoBehaviour
         {
             batteryLow.SetActive(false);
         }
+        
+        #region new battery
+        float[] motorCurrents = new float[4];
+        float totalMotorCurrent = 0f;
+        for (int i = 0; i < 4; i++)
+        {
+            float rpm = propeller.getRPM(i);
+            motorCurrents[i] = rpm * rpm * 0.00000024f / (batteryScript.GetActualVoltage() * 0.75f);
+            totalMotorCurrent += motorCurrents[i];
+        }
+        // Debug.Log($"Ток моторов: [{motorCurrents[0]:F2}, {motorCurrents[1]:F2}, " +
+        //         $"{motorCurrents[2]:F2}, {motorCurrents[3]:F2}] = {totalMotorCurrent:F2}A | " +
+        //         $"Полный ток (с авионикой): {batteryScript.GetCurrentDraw():F2}A");
+        #endregion
     }
 }
