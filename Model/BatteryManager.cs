@@ -19,11 +19,30 @@ public class BatteryManager : MonoBehaviour
     private const float CellVoltageMin = 3.0f; // Минимальное напряжение ячейки
     public PropellersController propellersController;
     bool batteryEnabled = true;
+
+    private const float k_motor = 0.00002f; // Подбирается под конкретный мотор
+    private float[] motorCurrents = new float[4];
+
     
     void Start()
     {
         currentCharge = initialCharge;
-        //LoadPlayerPrefs();
+        currentDraw_A = 1.0f; // Начальный ток авионики
+        UpdateVoltage();
+        Debug.Log($"Battery initialized: {cellCount}S, Charge: {currentCharge}%, Voltage: {actualVoltage}V");
+    }
+
+    // Новый метод: принимает ток от моторов
+    public void SetCurrentFromMotors(float motorCurrent)
+    {
+        // Общий ток = моторы + авионика
+        float avinonicsCurrent = 1.0f; // FC (0.5A) + приёмник (0.3A) + телеметрия (0.2A)
+        currentDraw_A = motorCurrent + avinonicsCurrent;
+        
+        // Ограничиваем физически невозможные значения
+        currentDraw_A = Mathf.Clamp(currentDraw_A, 0f, 60f); // Макс 150А для защиты
+        
+        UpdateVoltage();
     }
 
     void Update()
@@ -37,6 +56,8 @@ public class BatteryManager : MonoBehaviour
         //LoadPlayerPrefs();
     }
 
+    // // Устаревший метод - оставлен для обратной совместимости
+    [System.Obsolete("Используйте SetCurrentFromMotors() вместо этого")]
     public void SetCurrentDraw(float throttleAxis)
     {
         // Преобразуем ось газа из [-1, 1] в [0, 1]
@@ -51,6 +72,7 @@ public class BatteryManager : MonoBehaviour
         // Обновляем напряжение с учетом нагрузки
         UpdateVoltage();
     }
+
 
     private void UpdateVoltage()
     {
