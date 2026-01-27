@@ -19,7 +19,6 @@ public class RaceManager : MonoBehaviour
     private int currentLap = 0;
     private double startTime;
     private double endTime;
-    private bool shouldShowScoreCanvas;
 
     private float lapTime;
     private string lapTimeText;
@@ -29,6 +28,9 @@ public class RaceManager : MonoBehaviour
 
     private GameObject _player;
     private ControllerManager _controllermanager;
+    
+    // ========== ТРЕКЕР ЭНЕРГОЭФФЕКТИВНОСТИ ==========
+    private EnergyEfficiencyTracker energyTracker;
 
     void Awake()
     {
@@ -59,8 +61,6 @@ public class RaceManager : MonoBehaviour
 
         scoreAction.performed += OnScorePerformed;
         scoreAction.canceled += OnScoreCanceled;
-        
-        
     }
 
     
@@ -68,6 +68,14 @@ public class RaceManager : MonoBehaviour
     {
         _player = GameObject.FindGameObjectWithTag("Player");
         _controllermanager = _player.GetComponent<ControllerManager>();
+        
+        // ========== НАЙТИ ТРЕКЕР ЭНЕРГОЭФФЕКТИВНОСТИ ==========
+        energyTracker = _player.GetComponent<EnergyEfficiencyTracker>();
+        if (energyTracker == null)
+        {
+            Debug.LogWarning("[RaceManager] EnergyEfficiencyTracker не найден на дроне! Статистика энергоэффективности не будет собираться.");
+        }
+        
         // Register gates;
         for (int i = 0; i < gates.Length; i++)
         {
@@ -81,20 +89,24 @@ public class RaceManager : MonoBehaviour
 
     public void StopRace()
     {
-        Debug.Log("Stop Race");
         for (int i = 0; i < gates.Length; i++)
         {
             gates[i].GetComponent<RaceGate>().DisableGate();
         }
         currentGate = 0;
         currentLap = 0;
+        
+        // ========== ОСТАНОВИТЬ ТРЕКЕР ==========
+        if (energyTracker != null)
+        {
+            energyTracker.StopTracking();
+        }
     }
 
     private void OnScorePerformed(InputAction.CallbackContext context)
     {
         scoreCanvas.SetActive(true);
         scoreCanvas.GetComponentInChildren<RaceScoreList>().shouldUpdate = true;
-
     }
 
     private void OnScoreCanceled(InputAction.CallbackContext context)
@@ -104,16 +116,18 @@ public class RaceManager : MonoBehaviour
 
     public void StartRace()
     {
-        Debug.Log("Start Race");
         if (gates.Length > 0)
         {
             gates[(currentGate + 1) % gates.Length].GetComponent<RaceGate>().setNextGate();
             gates[currentGate].GetComponent<RaceGate>().EnableGate();
             raceStarted = true;
-            //startTime = Time.time;
             lapText.text = "Круг: 1/" + numberOfLaps;
-            ResetMyScore();
-            shouldShowScoreCanvas = false;
+            ResetMyScore();           
+            // ========== ЗАПУСТИТЬ ТРЕКЕР ==========
+            if (energyTracker != null)
+            {
+                energyTracker.StartTracking();
+            }
         }
     }
 
@@ -150,6 +164,24 @@ public class RaceManager : MonoBehaviour
         // End of race
         if (currentLap == numberOfLaps)
         {
+            // ========== ПОЛУЧИТЬ МЕТРИКИ ЭНЕРГОЭФФЕКТИВНОСТИ ==========
+            EnergyEfficiencyMetrics energyMetrics = new EnergyEfficiencyMetrics();
+            
+            if (energyTracker != null)
+            {
+                energyTracker.StopTracking();
+                energyMetrics = energyTracker.GetMetrics();
+                
+                Debug.Log($"[RaceManager] {energyMetrics.ToDetailedString()}");
+                lapTimeText += string.Format(" | Эффективность: {0:F1}% | Удельное потребление: {2:F2} Вт·ч/км | Дистанция: {3:F1}м | Потреблённая энергия: {4:F2} Вт·ч | Количество сбросов: {5}",
+                    energyMetrics.EEI,
+                    energyMetrics.SegmentCount,
+                    energyMetrics.SEC, 
+                    energyMetrics.TotalDistance, 
+                    energyMetrics.EnergyConsumed,
+                    energyMetrics.ResetCount);
+            }
+            
             // Change UI
             SetTextColor(Color.green);
             lapText.text = "Финишировал!";
@@ -157,7 +189,6 @@ public class RaceManager : MonoBehaviour
             // End race
             raceStarted = false;
             gates[currentGate].GetComponent<RaceGate>().DisableGate();
-            shouldShowScoreCanvas = true;
             TimeSpan timeSpan = TimeSpan.FromSeconds(PlayerPrefs.GetFloat("Time"));
             SetTimeText(String.Format("{0:D2}:{1:D2}:{2:D3}", timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds));
 
@@ -168,38 +199,20 @@ public class RaceManager : MonoBehaviour
             DateTime now = DateTime.Now;
             string dateText = now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            lapTimeText = string.Format("{0:00}:{1:00}.{2:000}", minutes, seconds, milliseconds);
-
-            lapTimeText += ") " + dateText;
-
-            // Получаем путь к папке построения
+            lapTimeText = string.Format("({0:00}:{1:00}.{2:000}) {3}", minutes, seconds, milliseconds, dateText);
             string dataPath;
 #if UNITY_EDITOR
-        dataPath = Application.dataPath.Replace("Assets", "");;
+            dataPath = Application.dataPath.Replace("Assets", "");
 #else
-        dataPath = Application.dataPath;
+            dataPath = Application.dataPath;
 #endif
-
-            // Задаем имя файла
-            string fileName = "LapTimes.txt";
-
-            // Проверяем, существует ли файл
-            if (File.Exists(dataPath + fileName))
-            {
-                // Если файл существует, добавляем время круга в конец файла
-                File.AppendAllText(dataPath + fileName, lapTimeText + "\n");
-                Debug.Log("Сохранено в " + dataPath + fileName);
-            }
-            else
-            {
-                // Если файла не существует, создаем его и записываем время круга
-                File.WriteAllText(dataPath + fileName, lapTimeText + "\n");
-                Debug.Log("Сохранено в " + dataPath + fileName);
-            }
+            string sessionDate = System.DateTime.Now.ToString("yyyy-MM-dd");
+            string fileName = $"LapTimes_{sessionDate}.txt";
+            string fullPath = dataPath + fileName;
+            File.AppendAllText(fullPath, lapTimeText + "\n");
         }
         else
         {
-            // New lap
             currentLap++;
             lapText.text = "Круг: " + currentLap + "/" + numberOfLaps;
         }
@@ -248,5 +261,4 @@ public class RaceManager : MonoBehaviour
             }
         }
     }
-    
 }
