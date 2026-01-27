@@ -23,25 +23,22 @@ public class BatteryManager : MonoBehaviour
     private const float k_motor = 0.00002f; // Подбирается под конкретный мотор
     private float[] motorCurrents = new float[4];
 
+    private float totalEnergyConsumed_Wh = 0f; // Накопление энергии
     
     void Start()
     {
         currentCharge = initialCharge;
         currentDraw_A = 1.0f; // Начальный ток авионики
         UpdateVoltage();
-        Debug.Log($"Battery initialized: {cellCount}S, Charge: {currentCharge}%, Voltage: {actualVoltage}V");
+        totalEnergyConsumed_Wh = 0f;
     }
 
-    // Новый метод: принимает ток от моторов
     public void SetCurrentFromMotors(float motorCurrent)
     {
         // Общий ток = моторы + авионика
         float avinonicsCurrent = 1.0f; // FC (0.5A) + приёмник (0.3A) + телеметрия (0.2A)
         currentDraw_A = motorCurrent + avinonicsCurrent;
-        
-        // Ограничиваем физически невозможные значения
-        currentDraw_A = Mathf.Clamp(currentDraw_A, 0f, 60f); // Макс 150А для защиты
-        
+        currentDraw_A = Mathf.Clamp(currentDraw_A, 0f, 60f);       
         UpdateVoltage();
     }
 
@@ -49,60 +46,43 @@ public class BatteryManager : MonoBehaviour
     {
         if (batteryEnabled)
         {
-            // Обновляем заряд аккумулятора
             UpdateCharge(Time.deltaTime);
         }
-        //Debug.Log(currentCharge + " " + actualVoltage / cellCount + " " + currentDraw_A + " ");
-        //LoadPlayerPrefs();
     }
-
-    // // Устаревший метод - оставлен для обратной совместимости
-    [System.Obsolete("Используйте SetCurrentFromMotors() вместо этого")]
-    public void SetCurrentDraw(float throttleAxis)
-    {
-        // Преобразуем ось газа из [-1, 1] в [0, 1]
-        float throttle = (throttleAxis + 1f) / 2f;
-        throttle = Mathf.Clamp(throttle, 0f, 1f); // Ограничиваем в пределах [0, 1]
-
-        // Рассчитываем ток потребления в зависимости от газа
-        float baseCurrent = 1.0f; // Базовый ток (например, для электроники)
-        float throttleFactor = 5.0f; // Коэффициент увеличения тока при полном газе
-        currentDraw_A = baseCurrent + throttleFactor * throttle;
-
-        // Обновляем напряжение с учетом нагрузки
-        UpdateVoltage();
-    }
-
 
     private void UpdateVoltage()
     {
-        // Рассчитываем напряжение без нагрузки
-        float voltageNoLoad = CellVoltageMin * cellCount + 
-                             (CellVoltageMax - CellVoltageMin) * cellCount * (currentCharge / 100f);
-
-        // Учитываем просадку напряжения под нагрузкой
+        float voltageNoLoad = CellVoltageMin * cellCount + (CellVoltageMax - CellVoltageMin) * cellCount * (currentCharge / 100f);
         actualVoltage = voltageNoLoad - currentDraw_A * internalResistance;
         actualVoltage = Mathf.Clamp(actualVoltage, CellVoltageMin * cellCount, CellVoltageMax * cellCount);
     }
 
     private void UpdateCharge(float deltaTime)
     {
-        // Переводим deltaTime из секунд в часы
         float deltaTimeHours = deltaTime / 3600f;
 
-        // Рассчитываем изменение заряда
-        float deltaCharge = (currentDraw_A * deltaTimeHours * 100f) / (capacity_mAh / 1000f); // Переводим capacity_mAh в А·ч
-        currentCharge -= deltaCharge;
+        float deltaEnergy_Wh = actualVoltage * currentDraw_A * deltaTimeHours;
+        totalEnergyConsumed_Wh += deltaEnergy_Wh;
 
-        // Ограничиваем заряд в пределах 0-100%
+        float deltaCharge = (currentDraw_A * deltaTimeHours * 100f) / (capacity_mAh / 1000f);
+        currentCharge -= deltaCharge;
         currentCharge = Mathf.Clamp(currentCharge, 0f, 100f);
 
-        // Если заряд достиг нуля, дрон "отключается"
         if (currentCharge <= 0f)
         {
             propController = GetComponent<PropellersController>();
             propController.StopAllMotors();
         }
+    }
+
+    public float GetTotalEnergyConsumed()
+    {
+        return totalEnergyConsumed_Wh;
+    }
+
+    public void ResetEnergyStats()
+    {
+        totalEnergyConsumed_Wh = 0f;
     }
 
     public float GetCurrentCharge()
@@ -132,26 +112,12 @@ public class BatteryManager : MonoBehaviour
 
     public void SetCellCount(int cells)
     {
-        // Устанавливаем количество ячеек
-        cellCount = Mathf.Clamp(cells, 1, 6); // Ограничиваем от 1S до 6S
-        UpdateVoltage(); // Обновляем напряжение
+        cellCount = Mathf.Clamp(cells, 1, 6);
+        UpdateVoltage();
     }
 
     public void resetCharge()
     {
         currentCharge = initialCharge;
     }
-
-    /*public void LoadPlayerPrefs()
-    {
-        bool enableBattery = PlayerPrefs.GetInt("enableBattery") > 0;
-            if (enableBattery)
-            {
-                batteryEnabled = true;
-            }
-            else
-            {
-                batteryEnabled = false;
-            }
-    }*/
 }
