@@ -26,7 +26,6 @@ public class ResetDrone : MonoBehaviour
         restartAction.performed += OnRestartPerformed;
     }
 
-    // Use this for initialization
     void Start()
     {
         initialPosition = transform.position;
@@ -37,14 +36,11 @@ public class ResetDrone : MonoBehaviour
         raceManager = (RaceManager)FindObjectOfType(typeof(RaceManager));
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (IsCrashed() && IsFlippedOver())
         {
             flipTime += Time.deltaTime;
-            //Debug.Log(flipTime);
-
             if (flipTime >= flipTimeThreshold)
             {
                 Restart();
@@ -79,8 +75,14 @@ public class ResetDrone : MonoBehaviour
         }
         GetComponent<Rigidbody>().velocity = Vector3.zero;
         GetComponent<Rigidbody>().angularVelocity = Vector3.zero;
-        GetComponent<ControllerManager>().resetYawRef();
         GetComponent<BatteryManager>().resetCharge();
+
+        EnergyEfficiencyTracker energyTracker = GetComponent<EnergyEfficiencyTracker>();
+        if (energyTracker != null)
+        {
+            energyTracker.RegisterReset();
+        }
+        GetComponent<ControllerManager>().resetYawRef();
     }
 
     public void setRaceManager(RaceManager rm)
@@ -90,7 +92,6 @@ public class ResetDrone : MonoBehaviour
 
     bool IsCrashed()
     {
-        // Вычисляем высоту террейна под квадрокоптером с помощью Raycast
         RaycastHit hit;
         if (Physics.Raycast(rb.transform.position, Vector3.down, out hit, Mathf.Infinity, groundLayer))
         {
@@ -104,27 +105,31 @@ public class ResetDrone : MonoBehaviour
                 Debug.DrawRay(rb.transform.position, Vector3.down * minHeight, Color.yellow);
                 return false;
             }
-            // Если высота квадрокоптера над землей ниже минимальной, считаем его упавшим
-           // return rb.transform.position.y - hit.point.y < minHeight;
         }
-        //Debug.DrawRay(rb.transform.position, Vector3.down * hit.distance, Color.green);
-
-        // Если Raycast не нашел землю, считаем, что квадрокоптер не упал
         return false;
     }
 
     bool IsFlippedOver()
     {
-        // Вычисляем угол между вектором вверх и вертикалью квадрокоптера
         float angle = Vector3.Angle(Vector3.up, rb.transform.up);
-
-        // Если угол больше максимального, считаем квадрокоптер перевернувшимся
         return angle > maxAngle;
+    }
+
+        private void OnDestroy()
+    {
+        if (restartAction != null)
+        {
+            restartAction.performed -= OnRestartPerformed;
+        }
     }
 
     private void OnRestartPerformed(InputAction.CallbackContext context)
     {
-        Restart();
+        if (this != null && gameObject != null)
+        {
+            Restart();
+        }
     }
+
 
 }
