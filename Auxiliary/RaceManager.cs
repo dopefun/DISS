@@ -32,6 +32,20 @@ public class RaceManager : MonoBehaviour
     // ========== ТРЕКЕР ЭНЕРГОЭФФЕКТИВНОСТИ ==========
     private EnergyEfficiencyTracker energyTracker;
 
+    private System.Collections.Generic.Dictionary<string, string> modelNames = new System.Collections.Generic.Dictionary<string, string>()
+    {
+        { "Model_0_Nazgul", "Шмель" },
+        { "Model_1_Grach", "Грач" },
+        { "Model_2_Snow", "ИРИС Снежинка-Б" },
+        { "Model_3_Meteor", "Метеор75" },
+        { "Model_4_DJI", "DJI" },
+        { "Model_5_Glaz", "Глазница" },
+        { "Model_6_MatriceClone", "Матрис" },
+        { "Model_7_SnowAmphib", "ИРИС Амфибия" },
+        { "Model_8_Mark7", "Марк 7" },
+        { "Model_9_SnowWhite", "ИРИС Снежинка" }
+    };
+
     void Awake()
     {
         if (numberOfLaps == 0) {numberOfLaps = DataHolder._laps;}
@@ -141,7 +155,6 @@ public class RaceManager : MonoBehaviour
             if (currentGate == 0)
             {
                 NextLap();
-                NextLap();
             }
         }
         else{
@@ -167,20 +180,7 @@ public class RaceManager : MonoBehaviour
             // ========== ПОЛУЧИТЬ МЕТРИКИ ЭНЕРГОЭФФЕКТИВНОСТИ ==========
             EnergyEfficiencyMetrics energyMetrics = new EnergyEfficiencyMetrics();
             
-            if (energyTracker != null)
-            {
-                energyTracker.StopTracking();
-                energyMetrics = energyTracker.GetMetrics();
-                
-                Debug.Log($"[RaceManager] {energyMetrics.ToDetailedString()}");
-                lapTimeText += string.Format(" | Эффективность: {0:F1}% | Удельное потребление: {2:F2} Вт·ч/км | Дистанция: {3:F1}м | Потреблённая энергия: {4:F2} Вт·ч | Количество сбросов: {5}",
-                    energyMetrics.EEI,
-                    energyMetrics.SegmentCount,
-                    energyMetrics.SEC, 
-                    energyMetrics.TotalDistance, 
-                    energyMetrics.EnergyConsumed,
-                    energyMetrics.ResetCount);
-            }
+
             
             // Change UI
             SetTextColor(Color.green);
@@ -198,8 +198,25 @@ public class RaceManager : MonoBehaviour
 
             DateTime now = DateTime.Now;
             string dateText = now.ToString("yyyy-MM-dd HH:mm:ss");
+            string prefabName = _player.name.Replace("(Clone)", "").Trim();
+            string modelName = modelNames.ContainsKey(prefabName) ? modelNames[prefabName] : prefabName;
+            lapTimeText = string.Format("({0:00}:{1:00}.{2:000}) {3} | Модель: {4}", minutes, seconds, milliseconds, dateText, modelName);
+            
+            if (energyTracker != null)
+            {
+                energyTracker.StopTracking();
+                energyMetrics = energyTracker.GetMetrics();
+                
+                //Debug.Log($"[RaceManager] {energyMetrics.ToDetailedString()}");
+                lapTimeText += string.Format(" | Эффективность: {0:F1}% | Удельное потребление: {2:F2} Вт·ч/км | Дистанция: {3:F1}м | Потреблённая энергия: {4:F2} Вт·ч | Количество сбросов: {5}",
+                    energyMetrics.EEI,
+                    energyMetrics.SegmentCount,
+                    energyMetrics.SEC, 
+                    energyMetrics.TotalDistance, 
+                    energyMetrics.EnergyConsumed,
+                    energyMetrics.ResetCount);
+            }
 
-            lapTimeText = string.Format("({0:00}:{1:00}.{2:000}) {3}", minutes, seconds, milliseconds, dateText);
             string dataPath;
 #if UNITY_EDITOR
             dataPath = Application.dataPath.Replace("Assets", "");
