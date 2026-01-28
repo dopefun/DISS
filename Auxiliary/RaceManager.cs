@@ -29,22 +29,8 @@ public class RaceManager : MonoBehaviour
     private GameObject _player;
     private ControllerManager _controllermanager;
     
-    // ========== ТРЕКЕР ЭНЕРГОЭФФЕКТИВНОСТИ ==========
-    private EnergyEfficiencyTracker energyTracker;
-
-    private System.Collections.Generic.Dictionary<string, string> modelNames = new System.Collections.Generic.Dictionary<string, string>()
-    {
-        { "Model_0_Nazgul", "Шмель" },
-        { "Model_1_Grach", "Грач" },
-        { "Model_2_Snow", "ИРИС Снежинка-Б" },
-        { "Model_3_Meteor", "Метеор75" },
-        { "Model_4_DJI", "DJI" },
-        { "Model_5_Glaz", "Глазница" },
-        { "Model_6_MatriceClone", "Матрис" },
-        { "Model_7_SnowAmphib", "ИРИС Амфибия" },
-        { "Model_8_Mark7", "Марк 7" },
-        { "Model_9_SnowWhite", "ИРИС Снежинка" }
-    };
+    // ========== МЕНЕДЖЕР ОЦЕНКИ НАВЫКОВ ==========
+    private SkillIndexManager skillManager;
 
     void Awake()
     {
@@ -83,11 +69,11 @@ public class RaceManager : MonoBehaviour
         _player = GameObject.FindGameObjectWithTag("Player");
         _controllermanager = _player.GetComponent<ControllerManager>();
         
-        // ========== НАЙТИ ТРЕКЕР ЭНЕРГОЭФФЕКТИВНОСТИ ==========
-        energyTracker = _player.GetComponent<EnergyEfficiencyTracker>();
-        if (energyTracker == null)
+        // ========== НАЙТИ МЕНЕДЖЕР НАВЫКОВ ==========
+        skillManager = _player.GetComponent<SkillIndexManager>();
+        if (skillManager == null)
         {
-            Debug.LogWarning("[RaceManager] EnergyEfficiencyTracker не найден на дроне! Статистика энергоэффективности не будет собираться.");
+            Debug.LogWarning("[RaceManager] SkillIndexManager не найден на дроне! Статистика навыков не будет собираться.");
         }
         
         // Register gates;
@@ -110,10 +96,10 @@ public class RaceManager : MonoBehaviour
         currentGate = 0;
         currentLap = 0;
         
-        // ========== ОСТАНОВИТЬ ТРЕКЕР ==========
-        if (energyTracker != null)
+        // ========== ОСТАНОВИТЬ ОЦЕНКУ ==========
+        if (skillManager != null)
         {
-            energyTracker.StopTracking();
+            skillManager.StopEvaluation();
         }
     }
 
@@ -136,11 +122,12 @@ public class RaceManager : MonoBehaviour
             gates[currentGate].GetComponent<RaceGate>().EnableGate();
             raceStarted = true;
             lapText.text = "Круг: 1/" + numberOfLaps;
-            ResetMyScore();           
-            // ========== ЗАПУСТИТЬ ТРЕКЕР ==========
-            if (energyTracker != null)
+            ResetMyScore();
+            
+            // ========== ЗАПУСТИТЬ ОЦЕНКУ НАВЫКОВ ==========
+            if (skillManager != null)
             {
-                energyTracker.StartTracking();
+                skillManager.StartEvaluation();
             }
         }
     }
@@ -177,11 +164,6 @@ public class RaceManager : MonoBehaviour
         // End of race
         if (currentLap == numberOfLaps)
         {
-            // ========== ПОЛУЧИТЬ МЕТРИКИ ЭНЕРГОЭФФЕКТИВНОСТИ ==========
-            EnergyEfficiencyMetrics energyMetrics = new EnergyEfficiencyMetrics();
-            
-
-            
             // Change UI
             SetTextColor(Color.green);
             lapText.text = "Финишировал!";
@@ -189,44 +171,18 @@ public class RaceManager : MonoBehaviour
             // End race
             raceStarted = false;
             gates[currentGate].GetComponent<RaceGate>().DisableGate();
+            
             TimeSpan timeSpan = TimeSpan.FromSeconds(PlayerPrefs.GetFloat("Time"));
             SetTimeText(String.Format("{0:D2}:{1:D2}:{2:D3}", timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds));
 
-            int minutes = timeSpan.Minutes;
-            int seconds = timeSpan.Seconds;
-            int milliseconds = timeSpan.Milliseconds;
-
-            DateTime now = DateTime.Now;
-            string dateText = now.ToString("yyyy-MM-dd HH:mm:ss");
-            string prefabName = _player.name.Replace("(Clone)", "").Trim();
-            string modelName = modelNames.ContainsKey(prefabName) ? modelNames[prefabName] : prefabName;
-            lapTimeText = string.Format("({0:00}:{1:00}.{2:000}) {3} | Модель: {4}", minutes, seconds, milliseconds, dateText, modelName);
-            
-            if (energyTracker != null)
+            // ========== ОСТАНОВИТЬ ОЦЕНКУ И СОХРАНИТЬ РЕЗУЛЬТАТЫ ==========
+            if (skillManager != null)
             {
-                energyTracker.StopTracking();
-                energyMetrics = energyTracker.GetMetrics();
+                skillManager.StopEvaluation();
                 
-                //Debug.Log($"[RaceManager] {energyMetrics.ToDetailedString()}");
-                lapTimeText += string.Format(" | Эффективность: {0:F1}% | Удельное потребление: {2:F2} Вт·ч/км | Дистанция: {3:F1}м | Потреблённая энергия: {4:F2} Вт·ч | Количество сбросов: {5}",
-                    energyMetrics.EEI,
-                    energyMetrics.SegmentCount,
-                    energyMetrics.SEC, 
-                    energyMetrics.TotalDistance, 
-                    energyMetrics.EnergyConsumed,
-                    energyMetrics.ResetCount);
+                float lapTimeValue = PlayerPrefs.GetFloat("Time");
+                skillManager.SaveResults(lapTimeValue, "Race");
             }
-
-            string dataPath;
-#if UNITY_EDITOR
-            dataPath = Application.dataPath.Replace("Assets", "");
-#else
-            dataPath = Application.dataPath;
-#endif
-            string sessionDate = System.DateTime.Now.ToString("yyyy-MM-dd");
-            string fileName = $"LapTimes_{sessionDate}.txt";
-            string fullPath = dataPath + fileName;
-            File.AppendAllText(fullPath, lapTimeText + "\n");
         }
         else
         {
