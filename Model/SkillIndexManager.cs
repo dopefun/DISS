@@ -7,8 +7,9 @@ public class SkillIndexManager : MonoBehaviour
 {
     // ========== ТРЕКЕРЫ КРИТЕРИЕВ ==========
     private EnergyEfficiencyTracker energyTracker;
-    // private SmoothnessTracker smoothnessTracker; // Критерий #2 (будущее)
-    // private TrajectoryTracker trajectoryTracker;  // Критерий #3 (будущее)
+    private GateAccuracyTracker accuracyTracker;
+    // private SmoothnessTracker smoothnessTracker; // Критерий #3 (будущее)
+    // private TrajectoryTracker trajectoryTracker;  // Критерий #4 (будущее)
     
     // ========== МАППИНГ МОДЕЛЕЙ ==========
     private Dictionary<string, string> modelNames = new Dictionary<string, string>()
@@ -42,21 +43,26 @@ public class SkillIndexManager : MonoBehaviour
     
     void Start()
     {
-        // Найти трекер энергоэффективности на этом же объекте
         energyTracker = GetComponent<EnergyEfficiencyTracker>();
+        accuracyTracker = GetComponent<GateAccuracyTracker>();
         
         if (energyTracker == null)
         {
             Debug.LogError("[SkillIndexManager] EnergyEfficiencyTracker не найден на дроне!");
             return;
         }
+
+        if (accuracyTracker == null)
+        {
+            Debug.LogError("[SkillIndexManager] AccuracyTracker не найден на дроне!");
+            return;
+        }
         
-        // Установить эталон для текущей модели
         string prefabName = gameObject.name.Replace("(Clone)", "").Trim();
         if (modelReferences.ContainsKey(prefabName))
         {
             energyTracker.referenceDistancePerWh = modelReferences[prefabName];
-            Debug.Log($"[SkillIndexManager] Эталон для модели {prefabName}: {modelReferences[prefabName]} м/Вт·ч");
+            //Debug.Log($"[SkillIndexManager] Эталон для модели {prefabName}: {modelReferences[prefabName]} м/Вт·ч");
         }
         else
         {
@@ -71,7 +77,11 @@ public class SkillIndexManager : MonoBehaviour
         if (energyTracker != null)
         {
             energyTracker.StartTracking();
-            Debug.Log("[SkillIndexManager] Оценка навыков начата");
+        }
+
+        if (accuracyTracker != null)
+        {
+            accuracyTracker.StartTracking();
         }
     }
     
@@ -80,7 +90,11 @@ public class SkillIndexManager : MonoBehaviour
         if (energyTracker != null)
         {
             energyTracker.StopTracking();
-            Debug.Log("[SkillIndexManager] Оценка навыков остановлена");
+        }
+
+        if (accuracyTracker != null)
+        {
+            accuracyTracker.StopTracking();
         }
     }
     
@@ -92,16 +106,18 @@ public class SkillIndexManager : MonoBehaviour
         }
         return new EnergyEfficiencyMetrics();
     }
+
+    public GateAccuracyMetrics GetAccuracyMetrics()
+    {
+        if (accuracyTracker != null)
+            return accuracyTracker.GetMetrics();
+        return new GateAccuracyMetrics();
+    }
     
     public void SaveResults(float lapTime, string eventType = "Race")
-    {
-        if (energyTracker == null)
-        {
-            Debug.LogWarning("[SkillIndexManager] EnergyEfficiencyTracker не найден, результаты не сохранены");
-            return;
-        }
-        
+    {      
         EnergyEfficiencyMetrics metrics = energyTracker.GetMetrics();
+        GateAccuracyMetrics accuracy = GetAccuracyMetrics();
         
         // Получить название модели
         string prefabName = gameObject.name.Replace("(Clone)", "").Trim();
@@ -109,11 +125,9 @@ public class SkillIndexManager : MonoBehaviour
         
         // Форматирование времени
         TimeSpan timeSpan = TimeSpan.FromSeconds(lapTime);
-        string timeFormatted = string.Format("({0:00}:{1:00}.{2:000})", 
-            timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds);
+        string timeFormatted = string.Format("({0:00}:{1:00}.{2:000})", timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds);
         
-        // Формирование строки лога
-        string logEntry = string.Format("{0} {1} | Type: {2} | Model: {3} | EEI: {4:F1}% (avg {5} seg) | SEC: {6:F2} Вт·ч/км | Dist: {7:F1}м | Energy: {8:F2} Вт·ч | Resets: {9}",
+        string logEntry = string.Format("{0} {1} | Type: {2} | Model: {3} | EEI: {4:F1}% (avg {5} seg) | SEC: {6:F2} Вт·ч/км | Dist: {7:F1}м | Energy: {8:F2} Вт·ч | Resets: {9} | Accuracy: {10:F1}% | AvgDeviation: {11:F2}м | Gates: {12}",
             timeFormatted,
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             eventType,
@@ -123,12 +137,13 @@ public class SkillIndexManager : MonoBehaviour
             metrics.SEC,
             metrics.TotalDistance,
             metrics.EnergyConsumed,
-            metrics.ResetCount);
+            metrics.ResetCount,
+            accuracy.AccuracyIndex,
+            accuracy.AverageDistance,    
+            accuracy.GateCount); 
         
-        // Вывод в консоль (детальный)
         Debug.Log($"[SkillIndexManager] {metrics.ToDetailedString()}");
-        
-        // Сохранение в файл
+        Debug.Log($"[SkillIndexManager] {accuracy}");
         SaveToFile(logEntry);
     }
     
@@ -152,7 +167,7 @@ public class SkillIndexManager : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"[SkillIndexManager] Ошибка сохранения: {e.Message}");
+           Debug.LogError($"[SkillIndexManager] Ошибка сохранения: {e.Message}");
         }
     }
 }

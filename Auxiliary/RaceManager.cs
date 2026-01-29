@@ -29,7 +29,6 @@ public class RaceManager : MonoBehaviour
     private GameObject _player;
     private ControllerManager _controllermanager;
     
-    // ========== МЕНЕДЖЕР ОЦЕНКИ НАВЫКОВ ==========
     private SkillIndexManager skillManager;
 
     void Awake()
@@ -63,7 +62,6 @@ public class RaceManager : MonoBehaviour
         scoreAction.canceled += OnScoreCanceled;
     }
 
-    
     void Start()
     {
         _player = GameObject.FindGameObjectWithTag("Player");
@@ -85,6 +83,10 @@ public class RaceManager : MonoBehaviour
         StopRace();
         lapText.text = "Ожидание...";
         SetTextColor(Color.red);
+        for (int i = 0; i < gates.Length; i++)
+        {
+            gates[i].GetComponent<RaceGate>().SetGateNumber(i);
+        }
     }
 
     public void StopRace()
@@ -96,7 +98,6 @@ public class RaceManager : MonoBehaviour
         currentGate = 0;
         currentLap = 0;
         
-        // ========== ОСТАНОВИТЬ ОЦЕНКУ ==========
         if (skillManager != null)
         {
             skillManager.StopEvaluation();
@@ -124,7 +125,6 @@ public class RaceManager : MonoBehaviour
             lapText.text = "Круг: 1/" + numberOfLaps;
             ResetMyScore();
             
-            // ========== ЗАПУСТИТЬ ОЦЕНКУ НАВЫКОВ ==========
             if (skillManager != null)
             {
                 skillManager.StartEvaluation();
@@ -154,28 +154,23 @@ public class RaceManager : MonoBehaviour
 
     void NextLap()
     {
-        // Save score
         if (currentLap > 0)
         {
             PlayerPrefs.SetInt("Lap", currentLap);
             PlayerPrefs.SetFloat("Time", (float)(Time.time - startTime));
         }
 
-        // End of race
         if (currentLap == numberOfLaps)
         {
-            // Change UI
             SetTextColor(Color.green);
             lapText.text = "Финишировал!";
 
-            // End race
             raceStarted = false;
             gates[currentGate].GetComponent<RaceGate>().DisableGate();
             
             TimeSpan timeSpan = TimeSpan.FromSeconds(PlayerPrefs.GetFloat("Time"));
             SetTimeText(String.Format("{0:D2}:{1:D2}:{2:D3}", timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds));
 
-            // ========== ОСТАНОВИТЬ ОЦЕНКУ И СОХРАНИТЬ РЕЗУЛЬТАТЫ ==========
             if (skillManager != null)
             {
                 skillManager.StopEvaluation();

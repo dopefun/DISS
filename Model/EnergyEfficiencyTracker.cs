@@ -158,13 +158,11 @@ public class EnergyEfficiencyTracker : MonoBehaviour
     {
         float segmentEnergy = battery != null ? battery.GetTotalEnergyConsumed() : 0f;
         
-        // Игнорировать слишком короткие сегменты (краши сразу после старта)
         if (segmentDistance < minSegmentDistance)
         {
             return;
         }
         
-        // Вычислить EEI сегмента
         float segmentEEI = CalculateSegmentEEI(segmentDistance, segmentEnergy);
         
         SegmentMetrics segment = new SegmentMetrics
@@ -199,11 +197,8 @@ public class EnergyEfficiencyTracker : MonoBehaviour
     private float CalculateAverageEEI()
     {
         if (segments.Count == 0) return 0f;
-        
-        // Базовый средний EEI
         float avgEEI = segments.Average(s => s.EEI);
         
-        // Применение модификаторов в зависимости от режима
         switch (resetMode)
         {
             case ResetHandlingMode.Development:

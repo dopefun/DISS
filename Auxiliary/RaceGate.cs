@@ -4,17 +4,22 @@ using System.Collections;
 public class RaceGate : MonoBehaviour
 {
     public AudioClip gateSound;
+    private AudioSource gateSoundSource;
+
     public Color enabledColor = new Color(0.83f, 0.69f, 0.21f, 1.0f);
     public Color nextColor = new Color(0.9f, 0.75f, 0.28f, 0.6f);
     public Color emissionColor = new Color(0.5f, 0.5f, 0.0f, 0.5f);
     public Color nextEmissionColor = new Color(0.1f, 0.1f, 0.1f, 0.0f);
     public Color finalEmissionColor = new Color (0f, 1f, 0f, 1f);
 
+    public Transform gateCenter;  
+    public bool enabledGate = false;   
     private RaceManager raceManager;
-    public bool enabledGate = false;
-
-    private AudioSource gateSoundSource;
-
+    private int gateNumber;
+    
+    // ========== ПУБЛИЧНЫЙ ГЕТТЕР ДЛЯ НОМЕРА ВОРОТ ==========
+    public int GateNumber => gateNumber;
+    
     void Start()
     {
         gateSoundSource = gameObject.AddComponent<AudioSource>();
@@ -66,7 +71,6 @@ public class RaceGate : MonoBehaviour
         }
     }
 
-
     public void Hide()
     {
         GetComponent<Renderer>().enabled = false;
@@ -75,5 +79,10 @@ public class RaceGate : MonoBehaviour
     public void Show()
     {
         GetComponent<Renderer>().enabled = true;
+    }
+
+    public void SetGateNumber(int number)
+    {
+        gateNumber = number;
     }
 }

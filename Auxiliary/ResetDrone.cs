@@ -82,6 +82,12 @@ public class ResetDrone : MonoBehaviour
         {
             energyTracker.RegisterReset();
         }
+
+        GateAccuracyTracker accuracyTracker = GetComponent<GateAccuracyTracker>(); // ← ДОБАВИТЬ
+        if (accuracyTracker != null)
+        {
+            accuracyTracker.RegisterReset();
+        }
         GetComponent<ControllerManager>().resetYawRef();
     }
 
