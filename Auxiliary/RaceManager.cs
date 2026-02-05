@@ -176,7 +176,7 @@ public class RaceManager : MonoBehaviour
                 skillManager.StopEvaluation();
                 
                 float lapTimeValue = PlayerPrefs.GetFloat("Time");
-                skillManager.SaveResults(lapTimeValue, "Race");
+                skillManager.SaveResults(lapTimeValue, "Гонка");
             }
         }
         else

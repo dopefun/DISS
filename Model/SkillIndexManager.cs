@@ -8,8 +8,8 @@ public class SkillIndexManager : MonoBehaviour
     // ========== ТРЕКЕРЫ КРИТЕРИЕВ ==========
     private EnergyEfficiencyTracker energyTracker;
     private GateAccuracyTracker accuracyTracker;
-    // private SmoothnessTracker smoothnessTracker; // Критерий #3 (будущее)
-    // private TrajectoryTracker trajectoryTracker;  // Критерий #4 (будущее)
+    private ControlInputSmoothnessTracker controlSmoothnessTracker;
+    private OrientationStabilityTracker orientationTracker;
     
     // ========== МАППИНГ МОДЕЛЕЙ ==========
     private Dictionary<string, string> modelNames = new Dictionary<string, string>()
@@ -26,7 +26,7 @@ public class SkillIndexManager : MonoBehaviour
         { "Model_9_SnowWhite", "ИРИС Снежинка" }
     };
     
-    // ========== МАППИНГ ЭТАЛОНОВ ПО МОДЕЛЯМ ==========
+    // ========== МАППИНГ ЭТАЛОНОВ ЭНЕРГОЭФФЕКТИВНОСТИ ПО МОДЕЛЯМ ==========
     private Dictionary<string, float> modelReferences = new Dictionary<string, float>()
     {
         { "Model_0_Nazgul", 400f },
@@ -45,24 +45,33 @@ public class SkillIndexManager : MonoBehaviour
     {
         energyTracker = GetComponent<EnergyEfficiencyTracker>();
         accuracyTracker = GetComponent<GateAccuracyTracker>();
+        controlSmoothnessTracker = GetComponent<ControlInputSmoothnessTracker>();
+        orientationTracker = GetComponent<OrientationStabilityTracker>();
         
         if (energyTracker == null)
         {
             Debug.LogError("[SkillIndexManager] EnergyEfficiencyTracker не найден на дроне!");
-            return;
         }
 
         if (accuracyTracker == null)
         {
-            Debug.LogError("[SkillIndexManager] AccuracyTracker не найден на дроне!");
-            return;
+            Debug.LogError("[SkillIndexManager] GateAccuracyTracker не найден на дроне!");
+        }
+
+        if (controlSmoothnessTracker == null)
+        {
+            Debug.LogError("[SkillIndexManager] ControlInputSmoothnessTracker не найден на дроне!");
+        }
+
+        if (orientationTracker == null)
+        {
+            Debug.LogError("[SkillIndexManager] OrientationStabilityTracker не найден на дроне!");
         }
         
         string prefabName = gameObject.name.Replace("(Clone)", "").Trim();
         if (modelReferences.ContainsKey(prefabName))
         {
             energyTracker.referenceDistancePerWh = modelReferences[prefabName];
-            //Debug.Log($"[SkillIndexManager] Эталон для модели {prefabName}: {modelReferences[prefabName]} м/Вт·ч");
         }
         else
         {
@@ -83,6 +92,16 @@ public class SkillIndexManager : MonoBehaviour
         {
             accuracyTracker.StartTracking();
         }
+
+        if (controlSmoothnessTracker != null)
+        {
+            controlSmoothnessTracker.StartRecording();
+        }
+
+        if (orientationTracker != null)
+        {
+            orientationTracker.StartTracking();
+        }
     }
     
     public void StopEvaluation()
@@ -95,6 +114,16 @@ public class SkillIndexManager : MonoBehaviour
         if (accuracyTracker != null)
         {
             accuracyTracker.StopTracking();
+        }
+
+        if (controlSmoothnessTracker != null)
+        {
+            controlSmoothnessTracker.StopRecording();
+        }
+
+        if (orientationTracker != null)
+        {
+            orientationTracker.StopTracking();
         }
     }
     
@@ -113,11 +142,27 @@ public class SkillIndexManager : MonoBehaviour
             return accuracyTracker.GetMetrics();
         return new GateAccuracyMetrics();
     }
+
+    public ControlSmoothnessReport GetControlSmoothnessMetrics()
+    {
+        if (controlSmoothnessTracker != null)
+            return controlSmoothnessTracker.GetReport();
+        return new ControlSmoothnessReport();
+    }
+
+    public OrientationStabilityMetrics GetOrientationMetrics()
+    {
+        if (orientationTracker != null)
+            return orientationTracker.GetMetrics();
+        return new OrientationStabilityMetrics();
+    }
     
-    public void SaveResults(float lapTime, string eventType = "Race")
+    public void SaveResults(float lapTime, string eventType = "Гонка")
     {      
-        EnergyEfficiencyMetrics metrics = energyTracker.GetMetrics();
+        EnergyEfficiencyMetrics energy = GetEnergyMetrics();
         GateAccuracyMetrics accuracy = GetAccuracyMetrics();
+        ControlSmoothnessReport controlSmoothness = GetControlSmoothnessMetrics();
+        OrientationStabilityMetrics orientation = GetOrientationMetrics();
         
         // Получить название модели
         string prefabName = gameObject.name.Replace("(Clone)", "").Trim();
@@ -127,23 +172,55 @@ public class SkillIndexManager : MonoBehaviour
         TimeSpan timeSpan = TimeSpan.FromSeconds(lapTime);
         string timeFormatted = string.Format("({0:00}:{1:00}.{2:000})", timeSpan.Minutes, timeSpan.Seconds, timeSpan.Milliseconds);
         
-        string logEntry = string.Format("{0} {1} | Type: {2} | Model: {3} | EEI: {4:F1}% (avg {5} seg) | SEC: {6:F2} Вт·ч/км | Dist: {7:F1}м | Energy: {8:F2} Вт·ч | Resets: {9} | Accuracy: {10:F1}% | AvgDeviation: {11:F2}м | Gates: {12}",
-            timeFormatted,
+        string separator = "========================================";
+        string logEntry = string.Format(
+            "{0}\n" +
+            "Время финиша: {1} | Длительность: {2}\n" +
+            "Тип события: {3} | Модель: {4}\n" +
+            "{0}\n" +
+            "КРИТЕРИЙ 1: ЭНЕРГОЭФФЕКТИВНОСТЬ\n" +
+            "  Энергоэффективность: {5:F1}% | УЭП: {6:F2} Вт·ч/км\n" +
+            "  Дистанция: {7:F1}м | Энергия: {8:F2} Вт·ч\n" +
+            "  Сегментов: {9} | Ресетов: {10}\n" +
+            "{0}\n" +
+            "КРИТЕРИЙ 2: ТОЧНОСТЬ ПРОХОЖДЕНИЯ ВОРОТ\n" +
+            "  Точность: {11:F1}% | Среднее отклонение: {12:F2}м\n" +
+            "  Пройдено ворот: {13}\n" +
+            "{0}\n" +
+            "КРИТЕРИЙ 3: ПЛАВНОСТЬ УПРАВЛЕНИЯ\n" +
+            "  Плавность: {14:F1}% | СКО производной: {15:F3} 1/с\n" +
+            "  Пиковое значение: {16:F2} 1/с\n" +
+            "{0}\n" +
+            "КРИТЕРИЙ 4: СТАБИЛЬНОСТЬ ОРИЕНТАЦИИ\n" +
+            "  Стабильность: {17:F1}% | Дисперсия: {18:F4} рад²/с²\n" +
+            "  Замеров угловых скоростей: {19}\n" +
+            "{0}\n",
+            separator,
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            timeFormatted,
             eventType,
             modelName,
-            metrics.EEI,
-            metrics.SegmentCount,
-            metrics.SEC,
-            metrics.TotalDistance,
-            metrics.EnergyConsumed,
-            metrics.ResetCount,
+            energy.EEI,
+            energy.SEC,
+            energy.TotalDistance,
+            energy.EnergyConsumed,
+            energy.SegmentCount,
+            energy.ResetCount,
             accuracy.AccuracyIndex,
-            accuracy.AverageDistance,    
-            accuracy.GateCount); 
+            accuracy.AverageDistance,
+            accuracy.GateCount,
+            controlSmoothness.normalizedScore,
+            controlSmoothness.rmsDeviation,
+            controlSmoothness.peakDerivative,
+            orientation.StabilityIndex,
+            orientation.TotalDispersion,
+            orientation.SampleCount);
         
-        Debug.Log($"[SkillIndexManager] {metrics.ToDetailedString()}");
+        Debug.Log($"[SkillIndexManager] {energy.ToDetailedString()}");
         Debug.Log($"[SkillIndexManager] {accuracy}");
+        Debug.Log($"[SkillIndexManager] {controlSmoothness}");
+        Debug.Log($"[SkillIndexManager] {orientation}");
+        
         SaveToFile(logEntry);
     }
     
